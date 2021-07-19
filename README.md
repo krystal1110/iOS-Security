@@ -497,11 +497,87 @@ char  * bundleName =  getenv("XPC_SERVICE_NAME");
     NSLog(@"%s",bundleName);
 ```
       
+### 定位防护 
+1. 在越狱设备中通过方法交换的形式来拦截` CLLocationManager `对象的 ` delegate `属性中的       ` - (void)locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray<CLLocation *> *)locations `实现来返回虚假的定位数据。
+2. 在未越狱的设备上通过电脑和手机进行USB连接，电脑通过特殊协议向手机上的DTSimulateLocation服务发送模拟的坐标数据来实现虚假定位，目前Xcode上内置位置模拟就是借助这个技术来实现的。
+3. 在未越狱的设备上通过符合MFI认证的蓝牙设备和手机连接，并通过MFI蓝牙设备向手机发送虚假的定位数据来实现定位模拟。比较有代表意义的就是市面上的：位置精灵app。
+
+* **防护**
+   - 此类定位的海拔高度都是为0，将为0的地区排除掉就可以得知 
+   - 可以获取本地的IP地址或者WIFI连接后的WIFI地址（但是需要申请权限）
+   
+   
+获取局域网IP   
+```C++
+// 获取局域网内的ip地址
++ (nullable NSString*)getCurrentLocalIP
+{
+    NSString *address = nil;
+    struct ifaddrs *interfaces = NULL;
+    struct ifaddrs *temp_addr = NULL;
+    int success = 0;
+    // retrieve the current interfaces - returns 0 on success
+    success = getifaddrs(&interfaces);
+    if (success == 0) {
+        // Loop through linked list of interfaces
+        temp_addr = interfaces;
+        while(temp_addr != NULL) {
+            if(temp_addr->ifa_addr->sa_family == AF_INET) {
+                // Check if interface is en0 which is the wifi connection on the iPhone
+                if([[NSString stringWithUTF8String:temp_addr->ifa_name] isEqualToString:@"en0"]) {
+                    // Get NSString from C String
+                    address = [NSString stringWithUTF8String:inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr)];
+                }
+            }
+            temp_addr = temp_addr->ifa_next;
+        }
+    }
+    // Free memory
+    freeifaddrs(interfaces);
+    return address;
+}
+```
+
+* 还有一种一层一层通过kvc读取CLLocation的_internal的fLocation，只能读取到到此。再通过kvc读取会报以下错误：
+      
+* 在每个CLLocation对象中有一个内部的私有数据成员：_internal  这个内部的私有属性是一个内部类CLLocationInternal的实例。而这个内部类CLLocationInternal中有一个结构体CLLocationInfo指针数据成员：fLocation。CLLocationInfo结构体定义如下：  
+```C++
+ struct CLLocationInfo {
+#if defined(__i386__) || defined(__x86_64__)
+    int padding1;
+#endif
+    int suitability;    //定位的magic数
+    CLLocationCoordinate2D coordinate;   //经纬度
+    CLLocationAccuracy horizontalAccuracy;   //水平精确度
+    CLLocationDistance altitude;    //海拔
+    CLLocationAccuracy verticalAccuracy;  //垂直精确度 
+#if defined(__i386__) || defined(__x86_64__)
+    double padding2;
+    double padding3;
+#endif
+    CLLocationSpeed speed;   //速度
+    CLLocationAccuracy speedAccuracy;  //速度精确度
+    CLLocationDirection course;   //方向
+    CLLocationAccuracy courseAccuracy;  //方向精确度
+    double timestamp;  //时间戳
+    int confidence;   //置信值？
+    double lifespan;   //有效期限？
+    int type;   //定位数据来源类型
+   CLLocationCoordinate2D rawCoordinate;  //原始经纬度
+    CLLocationDirection rawCourse;    //原始方向
+    int floor;     //楼层
+#if !defined(__i386__)
+    unsigned int integrity; //信息完整度？ ：75=High 50=Medium  25=Low  0=None
+    int referenceFrame; //参考坐标系：2=ChinaShifted 1=wgs84 0=unknown
+    int rawReferenceFrame;  //原始参考坐标系
+#endif
+};
+```
+![](https://tva1.sinaimg.cn/large/008i3skNgy1gsmb90x2vwj31110u0dj6.jpg)      
+   
+> 但是此方法没有成功 拿不到 ` CLLocationInfo `结构体   
       
       
       
-      
-      
-      
-      
+      https://boostnote.io/shared/91d30de9-6ebf-42dc-921e-656c6830a840
       
