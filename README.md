@@ -250,6 +250,56 @@ void callFunAddres(void) {
 ### 防护 汇编   
   * 使用汇编直接调用 
   
+```C++
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    //使用汇编调用syscall调起ptrace
+    #ifdef __arm64__
+    asm volatile(
+                 "mov x0,#26\n"
+                 "mov x1,#31\n"
+                 "mov x2,#0\n"
+                 "mov x3,#0\n"
+                 "mov x16,#0\n"
+                 "svc #0x80\n"//这条指令就是触发中断(系统级别的跳转!)
+    );
+    #endif
+     
+    //使用汇编直接调用 ptrace
+    #ifdef __arm64__
+    asm volatile(
+                 "mov x0,#31\n"
+                 "mov x1,#0\n"
+                 "mov x2,#0\n"
+                 "mov x16,#26\n"
+                 "svc #0x80\n"
+                 );
+    #endif
+}
+```
+
+x16 寄存器就放调用 syscall 需要调用的函数对应编号就可以 . 当然 , 不同架构寄存器指令不同 , 例如调用 exit 我们可以这么写
+```C++
+#ifdef __arm64__
+    asm volatile(
+                 "mov x0,#0\n"
+                 "mov x16,#1\n"
+                 "svc #0x80\n"
+                 );
+#endif
+#ifdef __arm__//32位下
+    asm volatile(
+                 "mov r0,#0\n"
+                 "mov r16,#1\n"
+                 "svc #80\n"
+                 );
+#endif
+```
+*    **优点：**
+  - 可以防止系统函数被 fishhook 干掉
+  - 添加符号断点并不能断住 
+  - 攻击者静态分析也比较难以查找
+  
   
   
   
